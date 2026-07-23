@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: python -m pip install pytest
+      - name: Unit tests
+        run: python -m pytest tests/ -q
+      - name: Inventory smoke on a fixture config
+        run: |
+          printf '{"mcpServers":{"a":{"type":"stdio","command":"python3","args":["s.py"]}}}' > /tmp/cfg.json
+          python3 scripts/mcp_inventory.py --path /tmp/cfg.json | grep -q "claude mcp add a --scope user -- python3 s.py"

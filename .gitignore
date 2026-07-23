@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.bak
+.DS_Store
+# a generated restore helper is a user artifact, not shipped
+mcp-restore.sh
+
+# Vouch session ledger (local, not shipped)
+.vouch/
