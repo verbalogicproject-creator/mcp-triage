@@ -11,8 +11,11 @@ It's **read-only**: it advises, you run the commands.
 
 ## Honest about the payoff
 
-Claude Code already **defers** MCP tool schemas — an idle server costs only a small tool-*names* amount
-at startup (~120 tokens per 5 servers), not its full schemas. So this is **not** a big token diet.
+Claude Code already **defers** MCP tool schemas — an idle server costs only a small tool-*names*
+amount at startup, not its full schemas (published breakdowns put the deferred saving in the
+80–95% range versus loading every schema). So this is **not** a big token diet. Want the exact
+number on your machine? Run `/context` before and after — we'd rather you measure it than trust a
+figure we made up.
 The real wins are:
 
 - **A faster, cleaner startup** — fewer server processes launched and health-checked (real on slower

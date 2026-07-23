@@ -14,10 +14,11 @@ lost. It is **read-only**: it advises; you run the commands.
 ## Be honest about the payoff (say this, don't oversell)
 
 Claude Code already **defers** MCP tool schemas — idle servers cost only a small tool-names amount at
-startup (~120 tokens per 5 servers), not their full schemas. So the win here is **a faster, quieter
-session** (fewer server processes + health-checks at startup, less selection noise), **not** big token
-savings. Changes take effect **next session** (MCP config is read at startup). Never claim large token
-savings.
+startup, not their full schemas. So the win here is **a faster, quieter session** (fewer server
+processes + health-checks at startup, less selection noise), **not** big token savings. Changes take
+effect **next session** (MCP config is read at startup). Never claim large token savings, and do not
+quote a specific per-server token figure — if the user wants a number, tell them to run `/context`
+before and after; that is the only honest source.
 
 ## Request
 
