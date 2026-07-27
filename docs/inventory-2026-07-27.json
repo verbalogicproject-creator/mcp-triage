@@ -1,0 +1,106 @@
+{
+  "lang": "python",
+  "scanner": "PythonScanner",
+  "root": "/root/projects/mcp-triage",
+  "nodes": [
+    {
+      "name": "mcp_inventory.py",
+      "path": "scripts/mcp_inventory.py",
+      "kind": "file",
+      "lang": "python",
+      "lines": 112,
+      "size_bytes": 4032,
+      "auto": true,
+      "category": "",
+      "identity": "Read Claude Code's configured MCP servers and emit, per server, the exact remove + restore",
+      "mechanism": "",
+      "state": {
+        "db_tables_read": [],
+        "db_tables_write": [],
+        "mqtt": "",
+        "subprocess": [],
+        "external_apis": []
+      },
+      "imports_from_engine": [],
+      "imported_by_engine": [
+        "test_inventory.py"
+      ],
+      "_detected": {
+        "classes": [],
+        "top_level_fns": [
+          "load_config",
+          "_restore_cmd",
+          "collect_servers",
+          "main"
+        ],
+        "imports_stdlib": [
+          "json",
+          "os",
+          "pathlib",
+          "sys",
+          "typing"
+        ],
+        "imports_third_party": [
+          "__future__",
+          "shlex"
+        ]
+      },
+      "upgrade_vector": {
+        "source": "no_documented_next_move",
+        "ref": "",
+        "text": ""
+      }
+    },
+    {
+      "name": "test_inventory.py",
+      "path": "tests/test_inventory.py",
+      "kind": "file",
+      "lang": "python",
+      "lines": 42,
+      "size_bytes": 1708,
+      "auto": true,
+      "category": "",
+      "identity": "The inventory parser: reconstruct correct remove + restore commands from ~/.claude.json config.",
+      "mechanism": "",
+      "state": {
+        "db_tables_read": [],
+        "db_tables_write": [],
+        "mqtt": "",
+        "subprocess": [],
+        "external_apis": []
+      },
+      "imports_from_engine": [
+        "mcp_inventory.py"
+      ],
+      "imported_by_engine": [],
+      "_detected": {
+        "classes": [],
+        "top_level_fns": [
+          "test_stdio_restore_reconstructs_command_args_env",
+          "test_http_restore",
+          "test_local_scope_from_projects",
+          "test_empty_config_yields_no_servers"
+        ],
+        "imports_stdlib": [
+          "pathlib",
+          "sys"
+        ],
+        "imports_third_party": []
+      },
+      "upgrade_vector": {
+        "source": "no_documented_next_move",
+        "ref": "",
+        "text": ""
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "test_inventory.py",
+      "to": "mcp_inventory.py",
+      "kind": "imports"
+    }
+  ],
+  "generated_at": "2026-07-27",
+  "scanner_version": "0.1.0"
+}
