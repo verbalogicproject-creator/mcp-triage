@@ -206,6 +206,18 @@ def test_other_install_never_appears_as_actionable():
     assert len(parts["elsewhere"]) == 1
 
 
+def test_partition_defaults_the_primary_root_to_the_rows_being_scanned(tmp_path):
+    """Scanning a home other than the session's own must still yield actionable
+    results. Pinning the primary root to the real HOME marked everything
+    'elsewhere' whenever --home pointed somewhere else."""
+    corpus = [_row("x", "deploy-tool", enabled=0, root="/scanned",
+                   description="deploy to production")]
+    parts = triage_rank.partition("deploy to production", corpus, limit=5,
+                                  current_root="/scanned")
+    assert [h["id"] for h in parts["turn_on"]] == ["x"]
+    assert parts["elsewhere"] == []
+
+
 def test_idle_lists_only_enabled_irrelevant_plugins_and_servers_in_this_root():
     # Distinct plugins on purpose: sharing one would make them plugin-mates, and
     # the structural hop would (correctly) pull the irrelevant ones in as

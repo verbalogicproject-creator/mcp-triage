@@ -252,14 +252,18 @@ def main(argv: list[str] | None = None) -> int:
     limit = int(args[args.index("--limit") + 1]) if "--limit" in args else 20
 
     rows = catalog.build_multi(project, homes)
-    parts = partition(query, rows, limit=limit, current_root=str(catalog.HOME))
+    # The FIRST root scanned is the one being triaged for; any others are
+    # reference. Pinning this to the session's own HOME instead would mark every
+    # hit unreachable whenever you deliberately point --home somewhere else.
+    primary = str((homes or [catalog.HOME])[0])
+    parts = partition(query, rows, limit=limit, current_root=primary)
 
     if "--json" in args:
         print(json.dumps(parts, indent=2))
         return 0
 
     print(f"Task: {query}")
-    print(f"Searched {len(rows)} extension(s) · this install: {catalog.HOME}\n")
+    print(f"Searched {len(rows)} extension(s) · this install: {primary}\n")
     if parts["turn_on"]:
         print("Switched off, but relevant — consider turning on:")
         for h in parts["turn_on"]:
