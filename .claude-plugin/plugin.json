@@ -1,7 +1,7 @@
 {
   "name": "mcp-triage",
-  "version": "0.1.1",
-  "description": "Too many MCP servers cluttering your session? For the task you're about to do, /mcp-triage recommends the minimal set of MCP servers to keep and prints the exact commands to disable the rest — plus the restore commands, captured first so nothing is lost. It's read-only: it advises, you run the commands. And it's honest about the payoff — Claude Code already defers MCP tool schemas, so the real win is a faster, quieter startup and less tool-selection noise, not big token savings. Free, offline, stdlib-only, no API keys.",
+  "version": "0.2.0",
+  "description": "Installed a pile of skills, plugins and MCP servers and can't remember what you have? Tell /mcp-triage the task you're about to start and it searches everything on disk — including what you've switched off — then recommends what to turn on for this task and what to leave idle, with the exact commands. Suggestions are found, not guessed: each one cites the file it came from, so nothing is recommended that you don't actually have. Read-only: it advises, you run the commands. Honest about the payoff — the real win is surfacing extensions you own but can't see; Claude Code already defers MCP tool schemas, so trimming buys a quieter startup, not big token savings. Free, offline, stdlib-only, no API keys.",
   "author": {
     "name": "Eyal Nof",
     "email": "verbalogic.project@gmail.com"
@@ -10,8 +10,10 @@
   "license": "Apache-2.0",
   "keywords": [
     "mcp",
+    "skills",
+    "plugins",
+    "discovery",
     "context",
-    "token-savings",
     "hygiene",
     "claude-code"
   ]

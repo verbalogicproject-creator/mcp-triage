@@ -19,3 +19,24 @@ jobs:
         run: |
           printf '{"mcpServers":{"a":{"type":"stdio","command":"python3","args":["s.py"]}}}' > /tmp/cfg.json
           python3 scripts/mcp_inventory.py --path /tmp/cfg.json | grep -q "claude mcp add a --scope user -- python3 s.py"
+      - name: Vendored engine imports with no third-party packages
+        # The stdlib-only invariant: the engine must load in a bare interpreter.
+        run: python3 -c "import declared_core; print(declared_core.__version__)"
+      - name: Catalog smoke on an empty home (must not crash or invent records)
+        run: |
+          mkdir -p /tmp/emptyhome /tmp/emptyproj
+          python3 scripts/catalog.py --project /tmp/emptyproj --home /tmp/emptyhome --json | grep -q '^\[\]$'
+      - name: Ranking smoke — a suggestion must trace to a real path
+        run: |
+          python3 - <<'PY'
+          import json, subprocess, sys
+          out = subprocess.run(
+              [sys.executable, "scripts/triage_rank.py", "debug a failing pytest suite",
+               "--project", "/tmp/emptyproj", "--json"],
+              capture_output=True, text=True, check=True).stdout
+          parts = json.loads(out)
+          for bucket in parts.values():
+              for hit in bucket:
+                  assert hit.get("path") is not None, hit
+          print("ok: every hit carries a path")
+          PY

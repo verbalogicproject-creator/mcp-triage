@@ -1,35 +1,63 @@
 # CLAUDE.md — mcp-triage (this plugin's own repo)
 
-A one-command **read-only advisor** that, for a given task, recommends which MCP servers to keep vs.
-disable and prints the exact remove + restore commands. It never touches config.
+A one-command **read-only advisor**: for a given task, it finds which of your installed
+extensions — skills, plugins, MCP servers, agents, commands — actually fit, **including ones
+you have switched off**, and prints the exact commands to turn them on or trim the idle ones.
+It never touches config.
+
+The name is now narrower than the tool. Renaming is a breaking change for anyone referencing
+`mcp-triage@verbalogix`, so it is deliberately deferred, not forgotten.
 
 ## Layout
 
 - `.claude-plugin/plugin.json` — manifest (metadata only; dirs auto-discovered).
-- `commands/mcp-triage.md` — the `/mcp-triage` command (frontmatter `description`/`argument-hint`/
+- `commands/triage.md` — the `/mcp-triage` command (frontmatter `description`/`argument-hint`/
   `allowed-tools`). The body holds the advisor protocol + the honesty rules.
-- `scripts/mcp_inventory.py` — stdlib-only: reads `~/.claude.json` (user + per-project `mcpServers`) and
-  emits, per server, the `claude mcp remove` and reconstructed `claude mcp add` (restore) commands.
-- `tests/` — pytest; `test_inventory.py` parses fixtures.
+- `scripts/mcp_inventory.py` — stdlib-only: reads `~/.claude.json` (user + per-project
+  `mcpServers`) and emits, per server, the `claude mcp remove` and reconstructed
+  `claude mcp add` (restore) commands.
+- `scripts/catalog.py` — probes every extension on disk (plugins, skills, commands, agents,
+  MCP servers) and resolves whether each is switched **on right now** through the real settings
+  cascade. Every record carries the `path` it came from.
+- `scripts/triage_rank.py` — declares the catalog as a searchable corpus and ranks it against a
+  task with the vendored engine (BM25 + a sibling hop + a usage prior).
+- `declared_core/` — **vendored, byte-identical** copy of the engine (`VENDORED.json` records
+  the tree hash). Do not hand-edit; re-sync with `tools/revendor.py` from the portfolio root.
+- `tests/` — pytest; fixtures only, never the developer's real config.
 
 ## Invariants — do not regress
 
-1. **Read-only.** The command and the script must NEVER run `claude mcp remove`/`add` or edit
-   `~/.claude.json`/settings. mcp-triage recommends; the user acts. (`mcp_inventory.py --save`, if ever
-   added, may write a helper `mcp-restore.sh` only — never active config.)
-2. **Restore-first.** Every Disable recommendation must come with the exact restore command, rebuilt from
-   config (command, args, env, headers). Removing loses config; the restore block is the safety net.
-   `test_inventory.py` locks the reconstruction.
-3. **stdlib-only, offline.** No third-party imports. Runs on the system Python 3.
-4. **Honest copy.** README, HOW-TO-USE, `plugin.json`, and the command output must NOT claim large token
-   savings — Claude Code already defers MCP schemas. State that; sell the real win (faster/quieter
-   startup, less selection noise). No ecosystem jargon (NLKE/substrate/SAG/declared) in user-facing copy.
+1. **Read-only.** The command and the scripts must NEVER run `claude mcp remove`/`add` or edit
+   `~/.claude.json`/settings. mcp-triage recommends; the user acts. (`mcp_inventory.py --save`,
+   if ever added, may write a helper `mcp-restore.sh` only — never active config.)
+2. **Restore-first.** Every MCP *removal* recommendation must come with the exact restore
+   command, rebuilt from config (command, args, env, headers). Removing loses config; the
+   restore block is the safety net. `test_inventory.py` locks the reconstruction.
+3. **stdlib-only, offline.** No third-party imports. Runs on the system Python 3. The vendored
+   engine is stdlib-only too, so this still holds — keep it that way.
+4. **Honest copy.** README, HOW-TO-USE, `plugin.json`, and the command output must NOT claim
+   large token savings — Claude Code already defers MCP schemas. State that; sell the real win
+   (surfacing extensions you own but cannot see; faster/quieter startup). No ecosystem jargon
+   (NLKE/substrate/SAG/declared) in user-facing copy.
+5. **Never suggest what wasn't probed.** A recommendation must trace to a catalog record with a
+   real `path`. The catalog exists so suggestions are retrieved, not recalled — recall invents
+   plugins the user doesn't have. `test_rank.py` locks this.
+6. **Secrets never enter the catalog.** `catalog.py` must not read MCP `env` or `headers`
+   values; the catalog is built to be printed and pasted. Only `mcp_inventory.py` touches them,
+   because a restore line genuinely needs them. `test_catalog.py` locks this.
+7. **One catalog scan = one Claude home.** This device can carry more than one install (e.g.
+   Termux and a PRoot distro), each with its own config, plugins, and on/off state. Records are
+   stamped with their `root` and never merged: an extension enabled in the *other* install is
+   not reachable from this session, so it must never be offered as available or enable-able.
 
 ## Run the checks
 
 ```bash
 python3 -m pytest tests/ -q
 python3 scripts/mcp_inventory.py            # sanity: lists your real servers + restore commands
+python3 scripts/catalog.py                  # sanity: what's installed and what's switched on
+python3 scripts/triage_rank.py "debug flaky pytest"   # sanity: ranked suggestions
+python3 ../tools/revendor.py check --repo mcp-triage  # vendored engine must be in sync
 ```
 
 ## Attribution

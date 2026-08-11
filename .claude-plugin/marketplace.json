@@ -1,0 +1,15 @@
+{
+  "name": "mcp-triage",
+  "owner": {
+    "name": "Eyal Nof",
+    "email": "verbalogic.project@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "mcp-triage",
+      "description": "Installed a pile of skills, plugins and MCP servers and can't remember what you have? Tell /mcp-triage the task you're about to start and it searches everything on disk — including what you've switched off — then recommends what to turn on for this task and what to leave idle, with the exact commands. Suggestions are found, not guessed: each one cites the file it came from, so nothing is recommended that you don't actually have. Read-only: it advises, you run the commands.",
+      "category": "productivity",
+      "source": "."
+    }
+  ]
+}
