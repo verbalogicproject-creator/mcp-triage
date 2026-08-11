@@ -1,6 +1,6 @@
 {
   "name": "mcp-triage",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Installed a pile of skills, plugins and MCP servers and can't remember what you have? Tell /mcp-triage the task you're about to start and it searches everything on disk — including what you've switched off — then recommends what to turn on for this task and what to leave idle, with the exact commands. Suggestions are found, not guessed: each one cites the file it came from, so nothing is recommended that you don't actually have. Read-only: it advises, you run the commands. Honest about the payoff — the real win is surfacing extensions you own but can't see; Claude Code already defers MCP tool schemas, so trimming buys a quieter startup, not big token savings. Free, offline, stdlib-only, no API keys.",
   "author": {
     "name": "Eyal Nof",

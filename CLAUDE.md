@@ -20,7 +20,8 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
   MCP servers) and resolves whether each is switched **on right now** through the real settings
   cascade. Every record carries the `path` it came from.
 - `scripts/triage_rank.py` — declares the catalog as a searchable corpus and ranks it against a
-  task with the vendored engine (BM25 + a sibling hop + a usage prior).
+  task with the vendored engine (BM25 + a usage prior), then groups hits by the
+  plugin you would switch on.
 - `declared_core/` — **vendored, byte-identical** copy of the engine (`VENDORED.json` records
   the tree hash). Do not hand-edit; re-sync with `tools/revendor.py` from the portfolio root.
 - `tests/` — pytest; fixtures only, never the developer's real config.
@@ -49,6 +50,11 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
    Termux and a PRoot distro), each with its own config, plugins, and on/off state. Records are
    stamped with their `root` and never merged: an extension enabled in the *other* install is
    not reachable from this session, so it must never be offered as available or enable-able.
+8. **The plugin groups results; it never ranks them.** Grouping by plugin is a display concern
+   (`group_hits`). Do NOT declare `group_key` as a `cluster_column`: feeding that relationship
+   into the ranking makes rank fusion count a plugin's size as if it were relevance, and a large
+   plugin's loosely-related siblings then bury a lean plugin's exact match. This was measured, not
+   theorised — see `test_group_order_follows_best_member_not_member_count`.
 
 ## Run the checks
 

@@ -5,13 +5,26 @@ WHY RETRIEVAL AND NOT JUDGEMENT. The catalog can hold several hundred
 extensions across two installs. Pasting that into a session and asking "which
 ones fit?" is a recall problem, and recall degrades exactly where it matters —
 the long tail nobody remembers installing. So matching runs as retrieval over an
-index instead: BM25 over each extension's name, description, and body, plus a
-structural hop to its siblings, fused by the engine.
+index instead: BM25 over each extension's name, description, and body, scored by
+the engine's declared dimensions and fused.
 
-THE SIBLING HOP MATTERS HERE. You do not enable a skill; you enable the plugin
-that ships it. So extensions cluster by plugin: when one skill matches, its
-plugin-mates surface too, because turning it on brings them all. That hop is why
-this is a corpus and not a scored list.
+THE PLUGIN IS THE UNIT OF ACTION, NOT THE UNIT OF RELEVANCE. You do not enable a
+skill; you enable the plugin that ships it, and its siblings arrive whether you
+asked for them or not. So results are GROUPED by plugin when displayed.
+
+Grouping is deliberately a display concern. Feeding that same relationship into
+the ranking — as a structural hop over a plugin cluster column — was measurably
+worse, and the failure was systematic rather than marginal. Rank fusion combines
+lists by position, so an item appearing in both the lexical and the structural
+list outscores one appearing in the lexical list alone. A plugin shipping five
+components therefore got five double-counted entries while a lean plugin with one
+command got one, independent of how well either actually matched. Measured: a
+query almost verbatim from `vouch`'s description ranked `/vouch:vouch` FIRST on
+BM25 alone and EIGHTH after fusion, displaced by four agents that arrived purely
+as each other's neighbours.
+
+Relevance is therefore decided by the best-matching piece. Siblings are shown
+because they are what you get, not counted because there are many of them.
 
 USAGE AS A DECLARED SIGNAL. "You have actually used this before" is evidence,
 and it belongs in the ranking rather than bolted on afterwards as a multiplier.
@@ -55,7 +68,7 @@ import catalog  # noqa: E402
 # ── the declared corpus ─────────────────────────────────────────────────────
 
 COLUMNS = (
-    "id", "name", "kind", "scope", "plugin", "cluster_key", "enabled",
+    "id", "name", "kind", "scope", "plugin", "group_key", "enabled",
     "state_reason", "description", "body", "path", "enable_cmd", "disable_cmd",
     "usage_count", "last_used_at", "root",
 )
@@ -66,12 +79,12 @@ EXTENSIONS = SourceTable(
     # What a task description actually matches against.
     text_columns=("name", "description", "body"),
     carry_columns=(
-        "kind", "scope", "plugin", "enabled", "state_reason", "path",
+        "kind", "scope", "plugin", "group_key", "enabled", "state_reason", "path",
         "enable_cmd", "disable_cmd", "usage_count", "last_used_at", "root",
     ),
-    # Rows sharing a cluster_key are structural neighbours. See the module note:
-    # plugin-mates ride along because enabling is plugin-granular.
-    cluster_columns=("cluster_key",),
+    # No cluster_columns on purpose — see the module docstring. `group_key` is
+    # carried for DISPLAY grouping only; declaring it here as a cluster column
+    # would re-create the structural hop that buried genuine matches.
 )
 
 # `proven` extends the engine's 12 generic dimensions rather than replacing them.
@@ -149,9 +162,10 @@ def build_index(rows: list[dict], conn: sqlite3.Connection | None = None) -> sql
 def _row_values(r: dict) -> list[Any]:
     out = []
     for c in COLUMNS:
-        if c == "cluster_key":
-            # Non-plugin rows must not all cluster together on an empty string;
-            # give each its own key so it expands to nothing.
+        if c == "group_key":
+            # Rows with no plugin (a lone MCP server, a loose agent) each get
+            # their own key so they display alone rather than piling into one
+            # bucket keyed on the empty string.
             out.append(r.get("plugin") or f"solo:{r.get('id', '')}")
         else:
             out.append(r.get(c, "" if c not in ("enabled", "usage_count", "last_used_at") else 0))
@@ -200,12 +214,41 @@ def rank(query: str, rows: list[dict], limit: int = 20) -> list[dict]:
             "disable_cmd": h.get("disable_cmd", ""),
             "usage_count": int(h.get("usage_count") or 0),
             "root": h.get("root", ""),
+            # What to group this under when displaying: the plugin you would
+            # actually switch on, or the item itself when it has no plugin.
+            "group_key": h.get("group_key", "") or h.get("name", ""),
             # Provenance: which signals put this here, and its rules score.
             "matched_by": list(h.get("rrf_sources") or []),
             "rules_score": round(float(h.get("rules_score") or 0.0), 4),
         })
     conn.close()
     return hits
+
+
+def group_hits(hits: list[dict]) -> list[dict]:
+    """Collapse hits into per-plugin groups, best-ranked group first.
+
+    A group's position is its BEST member's position, never its size — that is
+    the whole correction. Ordering by anything size-derived is what let a large
+    plugin's siblings outrank a small plugin's exact match.
+    """
+    order: list[str] = []
+    members: dict[str, list[dict]] = {}
+    for h in hits:
+        key = h.get("group_key") or h.get("name", "")
+        if key not in members:
+            members[key] = []
+            order.append(key)
+        members[key].append(h)
+    return [{
+        "group_key": k,
+        "plugin": members[k][0].get("plugin", ""),
+        "enabled": members[k][0].get("enabled", 0),
+        "state_reason": members[k][0].get("state_reason", ""),
+        "enable_cmd": members[k][0].get("enable_cmd", ""),
+        "root": members[k][0].get("root", ""),
+        "hits": members[k],
+    } for k in order]
 
 
 def partition(query: str, rows: list[dict], limit: int = 20,
@@ -264,18 +307,28 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Task: {query}")
     print(f"Searched {len(rows)} extension(s) · this install: {primary}\n")
+
     if parts["turn_on"]:
         print("Switched off, but relevant — consider turning on:")
-        for h in parts["turn_on"]:
-            print(f"  {h['kind']:8s} {h['name']}")
-            print(f"           {h['state_reason']} · used {h['usage_count']}x · {h['enable_cmd']}")
-            print(f"           {h['path']}")
+        for g in group_hits(parts["turn_on"]):
+            label = g["plugin"] or g["hits"][0]["name"]
+            extra = f"  (+{len(g['hits']) - 1} more piece(s))" if len(g["hits"]) > 1 else ""
+            print(f"\n  {label}{extra}")
+            if g["enable_cmd"]:
+                print(f"    {g['enable_cmd']}")
+            for h in g["hits"]:
+                used = f" · used {h['usage_count']}x" if h["usage_count"] else ""
+                print(f"      {h['kind']:8s} {h['name']}{used}")
+                print(f"               {h['path']}")
     else:
         print("Nothing switched off looks relevant to this task.")
+
     if parts["already"]:
         print("\nAlready available and relevant:")
         for h in parts["already"]:
-            print(f"  {h['kind']:8s} {h['name']}  (used {h['usage_count']}x)")
+            used = f"  (used {h['usage_count']}x)" if h["usage_count"] else ""
+            print(f"  {h['kind']:8s} {h['name']}{used}")
+
     if parts["elsewhere"]:
         print("\nIn your OTHER Claude install — not reachable from this session:")
         for h in parts["elsewhere"]:

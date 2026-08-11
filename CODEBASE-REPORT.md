@@ -86,7 +86,7 @@ stay true. `mcp-triage` is the seventh consumer of this pattern.
 | `declared_core/` | Vendored retrieval engine (15 modules). Not edited here — re-sync via `tools/revendor.py`; `VENDORED.json` holds the tree hash | 15 files | CI bare-import check + the drift guard |
 | `tests/test_inventory.py` | 4 cases: stdio/http restore reconstruction, local scope, empty config | 41 | itself, run in CI |
 | `tests/test_catalog.py` | 19 cases: frontmatter parsing, cascade precedence, stale-installPath fallback, disabled-plugin state, usage key matching, secrets exclusion, multi-root separation | 233 | itself, run in CI |
-| `tests/test_rank.py` | 20 cases: every hit traces to a real row, determinism, the proven curve, lift bounds, the sibling hop, bucket partitioning | 240 | itself, run in CI |
+| `tests/test_rank.py` | 21 cases: every hit traces to a real row, determinism, the proven curve, lift bounds, plugin grouping ordered by best member, bucket partitioning | 291 | itself, run in CI |
 | `.github/workflows/ci.yml` | On push to `main` and PRs: Python 3.11, pytest, then 4 smoke tests (inventory restore line, bare engine import, empty-home `[]`, every-hit-has-a-path) | 42 | GitHub Actions |
 | `README.md` / `HOW-TO-USE.md` / `how-to.ngf.md` / `CLAUDE.md` | Pitch + honesty section / walkthrough + FAQ / short intuitive guide / seven agent-facing invariants | 96 / 93 / 146 / 66 | — |
 | `docs/inventory-2026-07-27.json` | Auto-generated AST scan from 2026-07-27 — **stale**: it predates `catalog.py`, `triage_rank.py`, and the vendored engine. Regenerate or delete | — | — |
@@ -179,8 +179,8 @@ now `mcp, skills, plugins, discovery, context, hygiene, claude-code`: `"token-sa
 
 ```
 $ python3 -m pytest tests/ -q
-...........................................                              [100%]
-43 passed in 0.61s
+............................................                             [100%]
+44 passed in 1.04s
 ```
 
 The suite maps onto the invariants in `CLAUDE.md`:
@@ -192,6 +192,9 @@ The suite maps onto the invariants in `CLAUDE.md`:
   the probe, and that a usage prior can reorder matches but never manufacture one.
 - **Secrets never enter the catalog** (#6): `test_mcp_records_never_carry_env_or_header_values`
   plants a fake credential in a fixture and asserts it appears nowhere in the output.
+- **Plugin groups, never ranks** (#8): `test_group_order_follows_best_member_not_member_count` locks
+  that a lean plugin's exact match beats a large plugin's siblings. Grouping is a display concern;
+  declaring it as a corpus cluster column made rank fusion treat plugin *size* as relevance.
 - **One scan = one Claude home** (#7): `test_multi_root_keeps_same_named_extensions_distinct` and
   `test_other_install_never_appears_as_actionable` lock that two installs stay two installs and that
   the unreachable one is never offered as actionable.

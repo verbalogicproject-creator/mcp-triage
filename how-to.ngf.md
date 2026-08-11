@@ -3,7 +3,7 @@ format: ngf/0.0.3
 kind: kb_doc
 doc_id: mcp-triage-how-to
 title: "mcp-triage — how to use it"
-version: "0.2.0"
+version: "0.2.1"
 category: tooling
 tags:
   - mcp-triage
@@ -80,20 +80,22 @@ Asking for `harden a python repo and set up CI` on this machine returns:
 
 ```
 Switched off, but relevant — consider turning on:
-  agent    auditor-cicd
-           plugin disabled · used 0x
-           set "nlke-production-auditor@nlke-production-auditor": true in enabledPlugins
-           /root/.claude/plugins/cache/nlke-production-auditor/.../agents/auditor-cicd.md
-  command  /nlke-production-auditor:audit
-           plugin disabled · used 1x
+
+  nlke-production-auditor@nlke-production-auditor  (+1 more piece(s))
+    set "nlke-production-auditor@nlke-production-auditor": true in enabledPlugins (or run /plugin)
+      agent    auditor-cicd
+               /root/.claude/plugins/cache/nlke-production-auditor/.../agents/auditor-cicd.md
+      plugin   nlke-production-auditor@nlke-production-auditor · used 8x
+               /root/.claude/plugins/cache/nlke-production-auditor/...
 ```
 
 Three things to notice:
 
 - It found a **whole audit pipeline** you'd forgotten was installed.
-- Both hits belong to **one plugin**. You don't switch on a skill — you switch on the
-  plugin, and everything it ships comes with it. That's why siblings show up together.
-- Every line ends in a **file path**. Open it. If a suggestion can't be checked, it
+- Results group under **one plugin, one command to run**. You don't switch on a skill —
+  you switch on the plugin, and everything it ships comes with it. A plugin's place in
+  the list comes from its best match, never from how many pieces it ships.
+- Every entry ends in a **file path**. Open it. If a suggestion can't be checked, it
   isn't worth much.
 
 ## Acting on it

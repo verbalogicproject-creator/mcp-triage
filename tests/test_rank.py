@@ -2,7 +2,7 @@
 
 The property that matters most is the first one — a suggestion must correspond
 to something that was actually found on disk. Everything else (determinism,
-usage weighting, the sibling hop) is about the answer being *useful*; that one is
+usage weighting, plugin grouping) is about the answer being *useful*; that one is
 about it being *true*.
 """
 
@@ -153,30 +153,59 @@ def test_lift_is_a_stable_reordering():
     assert triage_rank._apply_proven_lift(hits) == hits
 
 
-# ── the sibling hop ─────────────────────────────────────────────────────────
+# ── grouping by the plugin you would switch on ──────────────────────────────
 
-def test_matching_one_skill_surfaces_its_plugin_mates():
-    """You enable a plugin, not a skill, so a match should pull in what comes
-    with it."""
+def test_hits_group_under_the_plugin_you_would_switch_on():
+    """You enable a plugin, not a skill, so matches from one plugin collapse into
+    a single actionable group."""
     corpus = [
         _row("a1", "orb-mount", plugin="voice@mkt", description="mount the voice orb"),
-        _row("a2", "cartridge", plugin="voice@mkt", description="author a persona cartridge"),
+        _row("a2", "orb-cartridge", plugin="voice@mkt", description="author an orb persona cartridge"),
         _row("z1", "unrelated", plugin="other@mkt", description="totally different topic"),
     ]
-    ids = [h["id"] for h in triage_rank.rank("mount the voice orb", corpus, limit=5)]
-    assert "a1" in ids
-    assert "a2" in ids, "plugin-mate should ride along via the structural hop"
+    groups = triage_rank.group_hits(triage_rank.rank("orb", corpus, limit=5))
+    voice = next(g for g in groups if g["plugin"] == "voice@mkt")
+    assert {h["id"] for h in voice["hits"]} == {"a1", "a2"}
+    assert voice["enable_cmd"] == "enable voice@mkt"
 
 
-def test_non_plugin_rows_do_not_cluster_together():
-    """Rows with no plugin must not become each other's neighbours just because
-    both have an empty plugin field."""
+def test_rows_without_a_plugin_group_alone():
+    """A lone MCP server or loose agent must not pile into one bucket keyed on
+    the empty string."""
     corpus = [
-        _row("m1", "alpha-server", kind="mcp", plugin="", description="alpha topic"),
-        _row("m2", "beta-server", kind="mcp", plugin="", description="unrelated beta matter"),
+        _row("m1", "alpha-server", kind="mcp", plugin="", description="alpha topic here"),
+        _row("m2", "beta-server", kind="mcp", plugin="", description="alpha topic also"),
     ]
-    ids = [h["id"] for h in triage_rank.rank("alpha topic", corpus, limit=5)]
-    assert "m1" in ids and "m2" not in ids
+    groups = triage_rank.group_hits(triage_rank.rank("alpha topic", corpus, limit=5))
+    assert len(groups) == 2, "two unaffiliated rows must not share a group"
+
+
+def test_group_order_follows_best_member_not_member_count():
+    """THE REGRESSION THIS FILE EXISTS FOR.
+
+    A structural hop over a plugin cluster used to feed the ranking, so a plugin
+    shipping many components got many double-counted entries under rank fusion
+    and outranked a lean plugin's near-exact match. Measured on the real
+    catalog, a query almost verbatim from `vouch`'s description ranked
+    `/vouch:vouch` 1st on BM25 alone and 8th after fusion.
+    """
+    corpus = [
+        # The right answer, alone in its plugin.
+        _row("exact", "vouch", plugin="lean@mkt",
+             description="fact check the checkable claims in the last answer against real files"),
+        # A big plugin whose members are only loosely related.
+        *[_row(f"big{i}", f"bulk-{i}", plugin="big@mkt",
+               description="checkable documentation claims about files and answers")
+          for i in range(6)],
+    ]
+    hits = triage_rank.rank(
+        "fact check the checkable claims in the last answer against real files",
+        corpus, limit=10)
+    assert hits[0]["id"] == "exact", (
+        "a lean plugin's near-exact match must outrank a large plugin's siblings; "
+        f"got {[h['id'] for h in hits[:4]]}")
+    groups = triage_rank.group_hits(hits)
+    assert groups[0]["plugin"] == "lean@mkt"
 
 
 # ── partitioning by install ─────────────────────────────────────────────────
@@ -219,9 +248,8 @@ def test_partition_defaults_the_primary_root_to_the_rows_being_scanned(tmp_path)
 
 
 def test_idle_lists_only_enabled_irrelevant_plugins_and_servers_in_this_root():
-    # Distinct plugins on purpose: sharing one would make them plugin-mates, and
-    # the structural hop would (correctly) pull the irrelevant ones in as
-    # neighbours of the match.
+    # Distinct plugins on purpose, so each row stands or falls on its own text
+    # rather than being carried along in another's group.
     corpus = [
         _row("p_hit", "match-plugin", kind="plugin", plugin="a@m", enabled=1,
              root="/home", description="alpha topic"),

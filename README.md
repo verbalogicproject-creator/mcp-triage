@@ -23,8 +23,9 @@ so you can open it and check. If something isn't installed, it says so instead o
 Matching runs as a real search over that catalog: your task text against each extension's name,
 description, and body. Two touches on top:
 
-- **Plugin-mates ride along.** You don't enable a skill, you enable the plugin that ships it — so
-  when one skill matches, the rest of its plugin surfaces too.
+- **Results group by plugin.** You don't enable a skill, you enable the plugin that ships it — so
+  matches collapse into one entry per plugin, showing everything you'd get. A plugin's place in the
+  list comes from its best match, never from how many pieces it ships.
 - **What you've actually used gets a nudge.** Extensions you reach for often rank a little higher
   than ones you've never touched — bounded on purpose, so a popular tool can never crowd out a
   better match. A never-used extension can still be the right answer.

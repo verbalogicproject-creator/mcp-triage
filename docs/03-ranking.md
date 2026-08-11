@@ -12,8 +12,8 @@ That tail is the whole reason the tool exists.
 
 So matching runs as retrieval over an index instead. The catalog is declared as a searchable corpus
 and queried with the vendored engine in `declared_core/` — BM25 over each extension's name,
-description, and body, plus a structural hop, fused by the engine. Two consequences worth stating
-plainly:
+description, and body, scored across the engine's declared dimensions and fused. Two consequences
+worth stating plainly:
 
 - Results can only ever be **things the probe found**. Retrieval cannot return a row that isn't in
   the table, which is the structural version of "don't invent plugins".
@@ -21,27 +21,51 @@ plainly:
   in the path. Re-running for a second opinion gets you the same answer, which is the honest
   behaviour even if it's the less magical one.
 
-## Extensions cluster by plugin
+## The plugin groups results; it does not rank them
 
-The corpus declares one cluster column, and it isn't `kind` — it's the plugin:
+**You don't switch on a skill, you switch on the plugin that ships it**, and its siblings arrive
+whether you asked for them or not. So hits collapse into one group per plugin, showing the real unit
+of decision:
 
 ```python
-EXTENSIONS = SourceTable(
-    name="extensions",
-    text_columns=("name", "description", "body"),
-    cluster_columns=("cluster_key",),
-    ...
-)
+groups = group_hits(hits)   # ordered by each group's BEST member, never by size
 ```
 
-Rows sharing a `cluster_key` are structural neighbours, so when one skill matches, its plugin-mates
-surface with it. That mirrors how enabling actually works: **you don't switch on a skill, you switch
-on the plugin that ships it**, and its siblings arrive whether you asked for them or not. Showing
-them together is showing the real unit of decision.
-
 Rows with no plugin (a lone MCP server, a loose agent) get their own synthetic key rather than
-sharing an empty string — otherwise every unaffiliated row would become every other one's
-neighbour.
+sharing an empty string, so they display alone instead of piling into one bucket.
+
+### Why grouping is display-only — a bug worth keeping
+
+The first version expressed that same relationship in the *corpus*, as a structural hop over a
+plugin cluster column:
+
+```python
+cluster_columns=("cluster_key",)     # removed
+```
+
+It looked principled and it was measurably wrong. Rank fusion combines lists by **position**, so an
+item appearing in both the lexical list and the structural list outscores one appearing in the
+lexical list alone. A plugin shipping five components therefore contributed five double-counted
+entries; a lean plugin with one command contributed one. Plugin *size* was acting as relevance.
+
+Measured on the real catalog, with a query taken almost verbatim from `vouch`'s own description:
+
+```
+BM25 alone:   1. /vouch:vouch          2. vouch@verbalogix        <- correct
+After fusion: 1. repo-factory-documenter   2. atlas-kb-ingester
+              3. memory-recall             4. map-updater
+              5. vouch@verbalogix          8. /vouch:vouch        <- buried
+```
+
+Every hit that displaced it arrived via `structural:cluster_key`. Dropping the cluster column moved
+the right answer from 12th to 2nd, and made the top-ranked *plugin* correct on all four tasks in the
+regression battery.
+
+The lesson generalises past this repo: **a relationship that is real in the domain is not
+automatically a good ranking signal.** "These ship together" is true and useful — it just belongs in
+how results are presented, not in how they are scored.
+`test_group_order_follows_best_member_not_member_count` locks it, and invariant 8 in `CLAUDE.md`
+warns the next person off re-adding the column.
 
 ## Usage: a prior, not evidence
 
@@ -130,12 +154,13 @@ Task: deploy a service to production
 Searched 5 extension(s) · this install: /tmp/mcp-triage-demo-home
 
 Switched off, but relevant — consider turning on:
-  skill    deploy:ship-it
-           plugin disabled · used 0x · set "deploy@demo-market": true in enabledPlugins (or run /plugin)
-           /tmp/mcp-triage-demo-home/.claude/plugins/cache/demo-market/deploy/1.0.0/skills/ship-it/SKILL.md
-  plugin   deploy@demo-market
-           installed but disabled · used 0x · set "deploy@demo-market": true in enabledPlugins (or run /plugin)
-           /tmp/mcp-triage-demo-home/.claude/plugins/cache/demo-market/deploy/1.0.0
+
+  deploy@demo-market  (+1 more piece(s))
+    set "deploy@demo-market": true in enabledPlugins (or run /plugin)
+      skill    deploy:ship-it
+               /tmp/mcp-triage-demo-home/.claude/plugins/cache/demo-market/deploy/1.0.0/skills/ship-it/SKILL.md
+      plugin   deploy@demo-market
+               /tmp/mcp-triage-demo-home/.claude/plugins/cache/demo-market/deploy/1.0.0
 
 Already available and relevant:
   skill    notes:note-search  (used 42x)
@@ -143,8 +168,8 @@ Already available and relevant:
 
 Three things that output demonstrates at once:
 
-1. The **skill and its plugin surfaced together** — the cluster hop, showing the real unit of
-   decision rather than a skill you can't switch on by itself.
+1. Both matches sit under **one plugin heading with one enable command** — the real unit of
+   decision, rather than a skill you can't switch on by itself.
 2. Both hits carry a **path** you can open.
 3. `note-search` appears under "already available" — matched partly on its 42 recorded uses, and
    correctly *not* offered as something to turn on, because it's already on.

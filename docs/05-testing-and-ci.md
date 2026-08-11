@@ -19,8 +19,8 @@ python3 -m pytest tests/ -q
 Real output:
 
 ```
-...........................................                              [100%]
-43 passed in 0.61s
+............................................                             [100%]
+44 passed in 1.04s
 ```
 
 Three files, split by what they protect:
@@ -29,7 +29,7 @@ Three files, split by what they protect:
 |---|---|---|
 | `tests/test_inventory.py` | 4 | The restore reconstruction (chapter 01) |
 | `tests/test_catalog.py` | 19 | Honest probing and state resolution (chapter 02) |
-| `tests/test_rank.py` | 20 | Honest ranking (chapter 03) |
+| `tests/test_rank.py` | 21 | Honest ranking (chapter 03) |
 
 Every test runs against hand-built fixtures or `tmp_path` — **none reads your real config**. That's
 both a correctness property (the suite can't pass or fail because of what you happen to have
@@ -37,7 +37,7 @@ installed) and the reason the whole thing runs in well under a second.
 
 ### The load-bearing tests
 
-Most of the 43 are ordinary coverage. These few are the ones worth knowing by name, because each
+Most of the 44 are ordinary coverage. These few are the ones worth knowing by name, because each
 locks a claim the tool makes in prose:
 
 | Test | Locks the claim |
@@ -51,12 +51,23 @@ locks a claim the tool makes in prose:
 | `test_lift_never_introduces_something_retrieval_did_not_return` | Usage can reorder what matched, never manufacture a match |
 | `test_other_install_never_appears_as_actionable` | An extension in the *other* Claude home is never offered as available or enable-able |
 | `test_multi_root_keeps_same_named_extensions_distinct` | Two installs stay two installs; one root's state never stands in for the other's |
+| `test_group_order_follows_best_member_not_member_count` | A lean plugin's exact match outranks a large plugin's siblings — plugin size is not relevance |
 
-Two of those exist because the behaviour was *wrong first*. `test_used_extension_outranks_identical_unused_one`
-failed against the original design and forced the bounded lift in [chapter 03](03-ranking.md);
-`test_partition_defaults_the_primary_root_to_the_rows_being_scanned` was written after
-`--home` was found to mark every result unreachable whenever it pointed somewhere other than the
-session's own home. A test that never failed hasn't proven much.
+**Three of those exist because the behaviour was wrong first**, which is the most useful thing this
+suite can tell you about itself:
+
+- `test_used_extension_outranks_identical_unused_one` failed against the original design and forced
+  the bounded lift in [chapter 03](03-ranking.md).
+- `test_partition_defaults_the_primary_root_to_the_rows_being_scanned` was written after `--home`
+  was found to mark every result unreachable whenever it pointed somewhere other than the session's
+  own home.
+- `test_group_order_follows_best_member_not_member_count` came from dogfooding, not from unit
+  testing: on the real catalog a near-verbatim query ranked its exact match 8th because the
+  structural hop was counting plugin size as relevance. The earlier sibling test passed throughout —
+  it only asserted that a plugin-mate *appeared*, never that it didn't *outrank* a better match.
+
+A test that never failed hasn't proven much, and a test that asserts presence without asserting
+order proves less than it looks like it does.
 
 ## CI (`.github/workflows/ci.yml`)
 
@@ -105,7 +116,7 @@ Reproduce CI's own assertions locally, in order.
 python3 -m pytest tests/ -q
 ```
 
-Expected: `43 passed`.
+Expected: `44 passed`.
 
 ```bash
 printf '{"mcpServers":{"a":{"type":"stdio","command":"python3","args":["s.py"]}}}' > /tmp/cfg.json
@@ -136,4 +147,4 @@ shipped.
 - [`CODEBASE-REPORT.md`](../CODEBASE-REPORT.md) — the module map and data-flow in one place.
 - [`README.md`](../README.md) and [`HOW-TO-USE.md`](../HOW-TO-USE.md) — the user-facing quickstart
   and FAQ. [`how-to.ngf.md`](../how-to.ngf.md) is the short intuitive version.
-- [`CLAUDE.md`](../CLAUDE.md) — the seven invariants to hold if you're modifying this repo.
+- [`CLAUDE.md`](../CLAUDE.md) — the eight invariants to hold if you're modifying this repo.
