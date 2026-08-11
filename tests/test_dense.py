@@ -10,10 +10,24 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import dense
 import triage_rank
+
+# numpy is genuinely optional here, so the suite must run without it. Tests that
+# assert an index gets BUILT need it; tests that assert we degrade to None do
+# not — and those are the ones that matter most in a bare environment.
+try:
+    import numpy  # noqa: F401
+    HAVE_NUMPY = True
+except Exception:  # pragma: no cover - depends on the environment
+    HAVE_NUMPY = False
+
+requires_numpy = pytest.mark.skipif(
+    not HAVE_NUMPY, reason="numpy absent — dense is optional, so index-building is skipped")
 
 
 def _row(id_, name, desc, plugin="p@m"):
@@ -97,6 +111,7 @@ def test_toggling_a_plugin_does_not_invalidate_the_cache():
     assert dense.fingerprint(toggled, "u", "m") == a
 
 
+@requires_numpy
 def test_vectors_are_cached_and_reused(monkeypatch, tmp_path):
     monkeypatch.setenv("MCP_TRIAGE_EMBED_URL", "http://example.invalid/v1/embeddings")
     calls = {"n": 0}
@@ -115,6 +130,7 @@ def test_vectors_are_cached_and_reused(monkeypatch, tmp_path):
     assert calls["n"] == after_build, "second build must reuse the cache, not re-embed"
 
 
+@requires_numpy
 def test_stale_cache_files_are_pruned(monkeypatch, tmp_path):
     monkeypatch.setenv("MCP_TRIAGE_EMBED_URL", "http://example.invalid/v1/embeddings")
     stale = tmp_path / "deadbeef.npz"
@@ -124,6 +140,7 @@ def test_stale_cache_files_are_pruned(monkeypatch, tmp_path):
     assert not stale.exists(), "superseded cache entries must not accumulate"
 
 
+@requires_numpy
 def test_unwritable_cache_dir_still_returns_an_index(monkeypatch, tmp_path):
     """A cache that cannot be written costs a rebuild next run — it must never
     cost an answer."""

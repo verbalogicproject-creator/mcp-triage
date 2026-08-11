@@ -56,7 +56,7 @@ mcp-triage/
 ├── scripts/mcp_tools.py            OPTIONAL MCP tools/list probe (off unless MCP_TRIAGE_PROBE_TOOLS set)
 ├── declared_core/                  VENDORED search engine, byte-identical (see VENDORED.json)
 ├── tests/                          pytest: 75 tests across inventory / catalog / ranking / dense / mcp-tools
-├── .github/workflows/ci.yml        GitHub Actions: pytest + 6 smoke tests
+├── .github/workflows/ci.yml        GitHub Actions: 2 jobs (with numpy, and bare)
 ├── docs/                           this doc set (00-mental-model.md .. 05-testing-and-ci.md)
 │   └── inventory-2026-07-27.json      auto-generated AST module graph (stale; predates the catalog)
 ├── README.md, HOW-TO-USE.md, how-to.ngf.md, CLAUDE.md   user- and agent-facing docs
@@ -95,7 +95,7 @@ stay true. `mcp-triage` is the seventh consumer of this pattern.
 | `tests/test_dense.py` | 14 cases: off-by-default, unreachable server, dead embedder mid-build, cache reuse + invalidation, unwritable cache dir, byte-identical degradation | 147 | itself, run in CI |
 | `tests/test_mcp_tools.py` | 17 cases: off-by-default, interleaved-log parsing, hanging/crashing/missing servers, env passthrough, secrets never returned, cache reuse + failure caching | 187 | itself, run in CI |
 | `tests/test_rank.py` | 21 cases: every hit traces to a real row, determinism, the proven curve, lift bounds, plugin grouping ordered by best member, bucket partitioning | 291 | itself, run in CI |
-| `.github/workflows/ci.yml` | On push to `main` and PRs: Python 3.11, pytest, then 6 smoke tests (inventory restore line, bare engine import, dense-off-by-default, mcp-probe-inert, empty-home `[]`, every-hit-has-a-path) | 69 | GitHub Actions |
+| `.github/workflows/ci.yml` | Two jobs. `test` installs numpy so the dense index really gets built, then runs 6 smokes (inventory restore line, engine import, dense-off-by-default, mcp-probe-inert, empty-home `[]`, every-hit-has-a-path). `bare` installs pytest only, asserts numpy is genuinely absent, and proves the whole tool runs stdlib-only | 69 | GitHub Actions |
 | `README.md` / `HOW-TO-USE.md` / `how-to.ngf.md` / `CLAUDE.md` | Pitch + honesty section / walkthrough + FAQ / short intuitive guide / seven agent-facing invariants | 96 / 93 / 146 / 66 | — |
 | `docs/inventory-2026-07-27.json` | Auto-generated AST scan from 2026-07-27 — **stale**: it predates `catalog.py`, `triage_rank.py`, and the vendored engine. Regenerate or delete | — | — |
 

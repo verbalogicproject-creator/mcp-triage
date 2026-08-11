@@ -4,6 +4,8 @@ on:
     branches: [main]
   pull_request:
 jobs:
+  # Full suite with the optional dependency present, so the dense index actually
+  # gets built and its caching, pruning and invalidation are really exercised.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -11,20 +13,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install pytest
-        run: python -m pip install pytest
-      - name: Unit tests
+      - name: Install pytest + numpy
+        run: python -m pip install pytest numpy
+      - name: Unit tests (nothing should skip here)
         run: python -m pytest tests/ -q
       - name: Inventory smoke on a fixture config
         run: |
           printf '{"mcpServers":{"a":{"type":"stdio","command":"python3","args":["s.py"]}}}' > /tmp/cfg.json
           python3 scripts/mcp_inventory.py --path /tmp/cfg.json | grep -q "claude mcp add a --scope user -- python3 s.py"
-      - name: Vendored engine imports with no third-party packages
-        # The stdlib-only invariant: the engine must load in a bare interpreter.
+      - name: Vendored engine imports cleanly
         run: python3 -c "import declared_core; print(declared_core.__version__)"
-      - name: Dense booster degrades to nothing when unconfigured
-        # The default path must not need numpy or a network. This runs in the
-        # bare CI env where neither is available, which is the point.
+      - name: Dense booster stays off when unconfigured
+        # numpy is installed in this job, so this proves the *feature flag* is
+        # what gates dense — not merely the absence of the dependency.
         run: |
           python3 - <<'PY'
           import os, sys
@@ -34,7 +35,7 @@ jobs:
           assert dense.build_dense_index([{"id": "a", "name": "n", "description": "d"}]) is None
           assert dense.http_embedder()("text") is None
           assert "lexical only" in dense.dense_status()
-          print("ok: dense off by default, no numpy or network needed")
+          print("ok: dense off by default even with numpy available")
           PY
       - name: MCP tool probing is off unless asked, and starts nothing
         run: |
@@ -67,3 +68,33 @@ jobs:
                   assert hit.get("path") is not None, hit
           print("ok: every hit carries a path")
           PY
+
+  # The environment a plain install actually runs in: stdlib only, no numpy.
+  # Invariant #3 says the default path needs no third-party package, and a claim
+  # that is never executed in a bare interpreter is a claim, not a guarantee.
+  bare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pytest only
+        run: python -m pip install pytest
+      - name: Confirm numpy really is absent
+        # Without this, numpy leaking in would turn the skips below into silent
+        # coverage and this job would pass while proving nothing.
+        run: |
+          python -c "
+          import importlib.util
+          assert importlib.util.find_spec('numpy') is None, 'numpy present: this job must stay bare'
+          print('ok: bare environment')"
+      - name: Suite still passes with the optional dependency missing
+        run: python -m pytest tests/ -q
+      - name: The whole tool works without numpy
+        run: |
+          mkdir -p /tmp/emptyhome /tmp/emptyproj
+          python3 -c "import declared_core; print('engine ok', declared_core.__version__)"
+          python3 scripts/catalog.py --project /tmp/emptyproj --home /tmp/emptyhome --json | grep -q '^\[\]$'
+          python3 scripts/triage_rank.py "debug a failing pytest suite" --project /tmp/emptyproj --json > /dev/null
+          echo "ok: catalog and ranking run stdlib-only"
