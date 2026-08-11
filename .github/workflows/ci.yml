@@ -22,6 +22,20 @@ jobs:
       - name: Vendored engine imports with no third-party packages
         # The stdlib-only invariant: the engine must load in a bare interpreter.
         run: python3 -c "import declared_core; print(declared_core.__version__)"
+      - name: Dense booster degrades to nothing when unconfigured
+        # The default path must not need numpy or a network. This runs in the
+        # bare CI env where neither is available, which is the point.
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          os.environ.pop("MCP_TRIAGE_EMBED_URL", None)
+          sys.path.insert(0, "scripts"); sys.path.insert(0, ".")
+          import dense
+          assert dense.build_dense_index([{"id": "a", "name": "n", "description": "d"}]) is None
+          assert dense.http_embedder()("text") is None
+          assert "lexical only" in dense.dense_status()
+          print("ok: dense off by default, no numpy or network needed")
+          PY
       - name: Catalog smoke on an empty home (must not crash or invent records)
         run: |
           mkdir -p /tmp/emptyhome /tmp/emptyproj

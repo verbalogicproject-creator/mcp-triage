@@ -22,6 +22,9 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
 - `scripts/triage_rank.py` — declares the catalog as a searchable corpus and ranks it against a
   task with the vendored engine (BM25 + a usage prior), then groups hits by the
   plugin you would switch on.
+- `scripts/dense.py` — OPTIONAL semantic booster. Embeds the catalog once via a local
+  `/v1/embeddings` server, caches the vectors, and hands `hybrid_query` a dense index.
+  Off unless `MCP_TRIAGE_EMBED_URL` is set; returns `None` on every failure path.
 - `declared_core/` — **vendored, byte-identical** copy of the engine (`VENDORED.json` records
   the tree hash). Do not hand-edit; re-sync with `tools/revendor.py` from the portfolio root.
 - `tests/` — pytest; fixtures only, never the developer's real config.
@@ -34,8 +37,17 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
 2. **Restore-first.** Every MCP *removal* recommendation must come with the exact restore
    command, rebuilt from config (command, args, env, headers). Removing loses config; the
    restore block is the safety net. `test_inventory.py` locks the reconstruction.
-3. **stdlib-only, offline.** No third-party imports. Runs on the system Python 3. The vendored
-   engine is stdlib-only too, so this still holds — keep it that way.
+3. **stdlib-only, offline — in the DEFAULT path.** No third-party imports and no network on the
+   path a plain run takes. The vendored engine is stdlib-only too. The one exception is
+   `dense.py`, and it is an exception only because it is switched off unless
+   `MCP_TRIAGE_EMBED_URL` is set: numpy is imported lazily inside a `try`, the endpoint is
+   localhost, and every failure returns `None`. Adding a hard dependency, or importing numpy at
+   module scope, breaks this.
+   **BM25 is the floor; dense is a booster that must degrade to nothing.** `dense=None` has to
+   produce byte-identical output to no dense at all — server down, numpy missing, feature
+   unconfigured, or the embedder dying mid-build (half an index is worse than none: it would rank
+   part of the catalog semantically and the rest not at all).
+   `test_dense.py::test_no_dense_index_is_byte_identical_to_lexical_only` locks this.
 4. **Honest copy.** README, HOW-TO-USE, `plugin.json`, and the command output must NOT claim
    large token savings — Claude Code already defers MCP schemas. State that; sell the real win
    (surfacing extensions you own but cannot see; faster/quieter startup). No ecosystem jargon

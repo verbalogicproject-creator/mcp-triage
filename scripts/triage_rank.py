@@ -64,6 +64,7 @@ from declared_core import (  # noqa: E402
 )
 
 import catalog  # noqa: E402
+import dense as dense_mod  # noqa: E402
 
 # ── the declared corpus ─────────────────────────────────────────────────────
 
@@ -189,8 +190,14 @@ def _apply_proven_lift(hits: list[dict]) -> list[dict]:
     return [h for _, _, h in keyed]
 
 
-def rank(query: str, rows: list[dict], limit: int = 20) -> list[dict]:
-    """Extensions most relevant to `query`, best first, with match provenance."""
+def rank(query: str, rows: list[dict], limit: int = 20,
+         dense: Any | None = None) -> list[dict]:
+    """Extensions most relevant to `query`, best first, with match provenance.
+
+    `dense` is an optional semantic booster (see dense.py). None — the default —
+    is pure lexical, and the engine guarantees the fused result then equals the
+    lexical one exactly.
+    """
     if not query.strip() or not rows:
         return []
     conn = build_index(rows)
@@ -198,7 +205,8 @@ def rank(query: str, rows: list[dict], limit: int = 20) -> list[dict]:
     # lift *into* the visible window. Lifting after truncation would only reorder
     # rows that already made the cut — the proven tool sitting just below it, the
     # exact case the lift exists for, could never surface.
-    result = hybrid_query(query, SCHEMA, conn, limit=limit + int(PROVEN_LIFT_POSITIONS) + 5)
+    result = hybrid_query(query, SCHEMA, conn, limit=limit + int(PROVEN_LIFT_POSITIONS) + 5,
+                          dense=dense)
     hits = []
     for h in _apply_proven_lift(result.hits)[:limit]:
         hits.append({
@@ -252,7 +260,8 @@ def group_hits(hits: list[dict]) -> list[dict]:
 
 
 def partition(query: str, rows: list[dict], limit: int = 20,
-              current_root: str | None = None) -> dict[str, list[dict]]:
+              current_root: str | None = None,
+              dense: Any | None = None) -> dict[str, list[dict]]:
     """Both triage directions in one pass, split by which install a hit lives in.
 
     turn_on   relevant, switched off, and in THIS session's install — actionable.
@@ -266,7 +275,7 @@ def partition(query: str, rows: list[dict], limit: int = 20,
     `turn_on` would hand over an enable command that cannot help from here.
     """
     current_root = str(current_root or catalog.HOME)
-    hits = rank(query, rows, limit=limit)
+    hits = rank(query, rows, limit=limit, dense=dense)
     ranked_ids = {h["id"] for h in hits}
     here = [h for h in hits if h["root"] == current_root]
     return {
@@ -299,14 +308,17 @@ def main(argv: list[str] | None = None) -> int:
     # reference. Pinning this to the session's own HOME instead would mark every
     # hit unreachable whenever you deliberately point --home somewhere else.
     primary = str((homes or [catalog.HOME])[0])
-    parts = partition(query, rows, limit=limit, current_root=primary)
+    dense = dense_mod.build_dense_index(rows)
+    parts = partition(query, rows, limit=limit, current_root=primary, dense=dense)
 
     if "--json" in args:
         print(json.dumps(parts, indent=2))
         return 0
 
+    matching = dense_mod.dense_status() if dense else "lexical only"
     print(f"Task: {query}")
-    print(f"Searched {len(rows)} extension(s) · this install: {primary}\n")
+    print(f"Searched {len(rows)} extension(s) · this install: {primary}")
+    print(f"Matching: {matching}\n")
 
     if parts["turn_on"]:
         print("Switched off, but relevant — consider turning on:")

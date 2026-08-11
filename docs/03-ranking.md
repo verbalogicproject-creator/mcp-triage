@@ -123,6 +123,64 @@ suggestion honest, and `tests/test_rank.py` locks it:
 Relevance first, habit second. A tool you've never opened can still be the right answer for a new
 task.
 
+## Optional: the semantic booster
+
+Lexical search cannot bridge a vocabulary gap. These two sentences mean the same thing and share
+no content words:
+
+> "stop the assistant inventing things about my code"
+> "Fact-check the checkable claims in Claude's last answer against your real files"
+
+BM25 ranked that answer **10th**. No amount of tuning fixes it, because the signal isn't there.
+
+`dense.py` adds an optional second signal: embed every catalog entry once, embed the query at
+run time, and let `hybrid_query` fuse cosine similarity with BM25. Measured on the real catalog
+with `embeddinggemma-300m` served locally:
+
+| Query | BM25 | Hybrid |
+|---|---|---|
+| "stop the assistant inventing things about my code" | 10 | **1** |
+| "something to double-check my work before I ship it" | 23 | **4** |
+| "help me pick which of my tools to use" | 4 | **1** |
+| "I keep forgetting why we chose this approach" | 2 | **1** |
+
+Five of six test queries land at rank 1, and — the part that matters — **no query got worse**.
+That is the BM25 floor doing its job: dense adds recall where lexical had none, and lexical
+holds the line where dense would have wandered.
+
+### Why an embedder and not a reranker
+
+A cross-encoder reranker was tried first and rejected on evidence. It scores every
+`(query, document)` pair at run time, so nothing precomputes and cost scales with the candidate
+pool. Worse, it produced **no net ranking gain** here: extension descriptions are short, terse,
+and structurally similar, so on a genuine paraphrase every candidate collapsed into a narrow
+negative band (−10.8 to −11.0) where ordering is noise. It sharpened the queries that were
+already easy and added noise to the hard ones.
+
+An embedder inverts the cost. Documents are embedded **once**; the catalog only changes when you
+install or upgrade something. On the same hardware:
+
+| | build | per query |
+|---|---|---|
+| cross-encoder reranker | n/a (nothing cacheable) | 1.10s |
+| embeddings, cached | 16.7s one-off | **0.10s** |
+
+### It has to degrade to nothing
+
+The booster is switched off unless `MCP_TRIAGE_EMBED_URL` is set, and every failure path returns
+`None` — no server, no numpy, a timeout, a malformed response. `hybrid_query(dense=None)`
+produces results byte-identical to pure lexical search, so the default path carries no risk from
+a feature it never uses.
+
+One deliberate strictness: if the embedder dies **mid-build**, the whole index is discarded
+rather than kept partial. Half an index would rank some of the catalog semantically and the rest
+lexically — silently, and differently on every run.
+
+The cache is keyed on the catalog's text plus the embedder's identity, so installing or upgrading
+an extension rebuilds it and switching embedding models rebuilds it (vectors from one model are
+meaningless to another). Enabled state is deliberately **not** part of the key: toggling plugins
+on and off is the most common thing this tool leads you to do, and it stays free.
+
 ## The four buckets
 
 `partition()` splits results by what you can actually *do* about them:

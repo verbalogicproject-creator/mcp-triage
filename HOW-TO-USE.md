@@ -44,6 +44,35 @@ recommendation you can't verify isn't worth much.
 Run the commands you agree with, then **restart Claude Code** — config is read at startup, so
 nothing changes mid-session.
 
+## Optional: better matching when your words differ from the tool's
+
+By default, matching is keyword-based. That works well when you happen to use the same words
+the extension's description uses — and badly when you don't. "Stop the assistant inventing
+things about my code" and "fact-check the checkable claims against your real files" mean the
+same thing and share no words, so the right answer came 10th.
+
+If you run a local embedding server, point the tool at it and that query returns the right
+answer **1st**:
+
+```bash
+export MCP_TRIAGE_EMBED_URL=http://127.0.0.1:8145/v1/embeddings
+```
+
+Any OpenAI-style `/v1/embeddings` endpoint works — llama.cpp with `--embeddings`, Ollama, or
+anything else speaking that shape. Set `MCP_TRIAGE_EMBED_MODEL` too if your server needs a
+model name.
+
+What it costs: the first run after an install or upgrade re-embeds your catalog (about 17s for
+190 extensions on a phone NPU) and caches it in `~/.cache/mcp-triage/`. After that every run is
+under a second. **Switching plugins on and off does not invalidate the cache** — only installing,
+removing, or upgrading something does.
+
+If the server isn't running, nothing breaks. You get keyword matching and a line saying so:
+
+```
+Matching: lexical only
+```
+
 ## Seeing everything, without a task
 
 ```bash
