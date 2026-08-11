@@ -36,6 +36,19 @@ jobs:
           assert "lexical only" in dense.dense_status()
           print("ok: dense off by default, no numpy or network needed")
           PY
+      - name: MCP tool probing is off unless asked, and starts nothing
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          os.environ.pop("MCP_TRIAGE_PROBE_TOOLS", None)
+          sys.path.insert(0, "scripts")
+          import mcp_tools
+          started = []
+          mcp_tools.probe = lambda *a, **k: started.append(1)
+          assert mcp_tools.tool_map({"s": {"command": "echo"}}) == {}
+          assert not started, "probing must start nothing when disabled"
+          print("ok: mcp probe inert by default")
+          PY
       - name: Catalog smoke on an empty home (must not crash or invent records)
         run: |
           mkdir -p /tmp/emptyhome /tmp/emptyproj

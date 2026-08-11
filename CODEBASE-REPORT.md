@@ -53,9 +53,10 @@ mcp-triage/
 ├── scripts/catalog.py              probes EVERY extension + resolves whether it's switched on now
 ├── scripts/triage_rank.py          declares the catalog as a corpus, ranks it against a task
 ├── scripts/dense.py                OPTIONAL semantic booster (off unless MCP_TRIAGE_EMBED_URL set)
+├── scripts/mcp_tools.py            OPTIONAL MCP tools/list probe (off unless MCP_TRIAGE_PROBE_TOOLS set)
 ├── declared_core/                  VENDORED search engine, byte-identical (see VENDORED.json)
-├── tests/                          pytest: 58 tests across inventory / catalog / ranking / dense
-├── .github/workflows/ci.yml        GitHub Actions: pytest + 5 smoke tests
+├── tests/                          pytest: 75 tests across inventory / catalog / ranking / dense / mcp-tools
+├── .github/workflows/ci.yml        GitHub Actions: pytest + 6 smoke tests
 ├── docs/                           this doc set (00-mental-model.md .. 05-testing-and-ci.md)
 │   └── inventory-2026-07-27.json      auto-generated AST module graph (stale; predates the catalog)
 ├── README.md, HOW-TO-USE.md, how-to.ngf.md, CLAUDE.md   user- and agent-facing docs
@@ -86,13 +87,15 @@ stay true. `mcp-triage` is the seventh consumer of this pattern.
 | `scripts/mcp_inventory.py` | MCP servers only. `load_config`, `collect_servers` (user scope + `projects.*.mcpServers`), `_restore_cmd` (rebuild `claude mcp add …` for stdio vs http, incl. `-e KEY=v` and `--header`), `main` | 111 | `tests/test_inventory.py` + CI smoke |
 | `scripts/catalog.py` | The probe. Enumerates plugins/skills/commands/agents/MCP servers; resolves `enabled` through the settings cascade; attaches usage counters; stamps each record with its `root`. Never reads MCP `env`/`headers` | 523 | `tests/test_catalog.py` + CI empty-home smoke |
 | `scripts/triage_rank.py` | The search. Declares the catalog as a `CorpusSchema`, indexes into in-memory SQLite, ranks via `hybrid_query`, applies the bounded usage lift, splits into four buckets | 287 | `tests/test_rank.py` + CI path smoke |
+| `scripts/mcp_tools.py` | OPTIONAL probe. Speaks MCP (`initialize` → `initialized` → `tools/list`) to each configured server and returns tool names + descriptions, closing the one gap embeddings can't: an MCP server's config carries ~28 chars of text. The only module that starts a process — opt-in, timeout-bounded, cached, and `env`/`headers` never returned or cached | 224 | `tests/test_mcp_tools.py` + CI inert-by-default smoke |
 | `scripts/dense.py` | OPTIONAL semantic booster. Embeds the catalog once via a local `/v1/embeddings` endpoint, caches vectors keyed on catalog text + embedder identity, hands `hybrid_query` a dense index. Off unless `MCP_TRIAGE_EMBED_URL` is set; returns `None` on every failure | 203 | `tests/test_dense.py` + CI degradation smoke |
 | `declared_core/` | Vendored retrieval engine (15 modules). Not edited here — re-sync via `tools/revendor.py`; `VENDORED.json` holds the tree hash | 15 files | CI bare-import check + the drift guard |
 | `tests/test_inventory.py` | 4 cases: stdio/http restore reconstruction, local scope, empty config | 41 | itself, run in CI |
 | `tests/test_catalog.py` | 19 cases: frontmatter parsing, cascade precedence, stale-installPath fallback, disabled-plugin state, usage key matching, secrets exclusion, multi-root separation | 233 | itself, run in CI |
 | `tests/test_dense.py` | 14 cases: off-by-default, unreachable server, dead embedder mid-build, cache reuse + invalidation, unwritable cache dir, byte-identical degradation | 147 | itself, run in CI |
+| `tests/test_mcp_tools.py` | 17 cases: off-by-default, interleaved-log parsing, hanging/crashing/missing servers, env passthrough, secrets never returned, cache reuse + failure caching | 187 | itself, run in CI |
 | `tests/test_rank.py` | 21 cases: every hit traces to a real row, determinism, the proven curve, lift bounds, plugin grouping ordered by best member, bucket partitioning | 291 | itself, run in CI |
-| `.github/workflows/ci.yml` | On push to `main` and PRs: Python 3.11, pytest, then 5 smoke tests (inventory restore line, bare engine import, dense-off-by-default, empty-home `[]`, every-hit-has-a-path) | 56 | GitHub Actions |
+| `.github/workflows/ci.yml` | On push to `main` and PRs: Python 3.11, pytest, then 6 smoke tests (inventory restore line, bare engine import, dense-off-by-default, mcp-probe-inert, empty-home `[]`, every-hit-has-a-path) | 69 | GitHub Actions |
 | `README.md` / `HOW-TO-USE.md` / `how-to.ngf.md` / `CLAUDE.md` | Pitch + honesty section / walkthrough + FAQ / short intuitive guide / seven agent-facing invariants | 96 / 93 / 146 / 66 | — |
 | `docs/inventory-2026-07-27.json` | Auto-generated AST scan from 2026-07-27 — **stale**: it predates `catalog.py`, `triage_rank.py`, and the vendored engine. Regenerate or delete | — | — |
 
@@ -184,8 +187,9 @@ now `mcp, skills, plugins, discovery, context, hygiene, claude-code`: `"token-sa
 
 ```
 $ python3 -m pytest tests/ -q
-..........................................................               [100%]
-58 passed in 0.61s
+........................................................................ [ 96%]
+...                                                                      [100%]
+75 passed in 2.09s
 ```
 
 The suite maps onto the invariants in `CLAUDE.md`:

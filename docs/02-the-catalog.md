@@ -132,6 +132,58 @@ That is real output from the machine this was written on. Those twelve are insta
 scope for a different project and were never fetched here. Saying so is more useful than emitting a
 path that isn't there.
 
+## The MCP blind spot, and the one probe that fixes it
+
+Every other extension carries its own text. A skill has a description and a prompt body; a plugin
+has a manifest. An MCP server has a command and some args:
+
+```
+MCP server (stdio) — python3
+```
+
+Twenty-eight characters, and the only distinguishing token is an interpreter name. Measured, MCP
+servers averaged **44 characters** of searchable text against thousands for a skill, which made
+them findable only when a query happened to echo the server's own name. For a tool that started
+life as MCP triage, that was the worst-covered kind in its own index.
+
+The tool names and descriptions do exist — inside the *running* server. Nothing on disk has them
+and no CLI prints them (`claude mcp get` reports status and command, not tools). So the only
+honest source is to ask the server, over the MCP protocol it already speaks:
+
+```bash
+MCP_TRIAGE_PROBE_TOOLS=1 python3 scripts/catalog.py
+python3 scripts/mcp_tools.py     # or probe directly, to see what each server offers
+```
+
+Real output from this machine:
+
+```
+  context-os-dev       2 tool(s)  contextos_map Return a context-os map…
+  game_engine         41 tool(s)  ask_can_i Capability lookup: 'can I do X?'…
+  gemini-coder         8 tool(s)  search_kg Hybrid retrieval over the Gemini KG-RAG…
+  stitch              13 tool(s)  create_project Creates a new Stitch project…
+```
+
+Average searchable text per server: **44 → ~2,000 characters**. "Generate UI screens from a
+design" now returns the `stitch` server, which previously never surfaced at all.
+
+Two servers came back with zero tools. That is reported as zero rather than retried — see below.
+
+### Why it is opt-in
+
+This is the only code in the repo that starts a process. Everything else reads files. A search
+that silently spawned every configured server would be a surprise, so it happens only when asked,
+and the run is bounded in three ways:
+
+- a **hard per-server timeout** — a server that never answers costs a timeout, not a wedged search;
+- **results are cached**, keyed on what each server runs, so probing is a one-off;
+- **failures are cached as empty**, deliberately. A server broken now is very likely broken in a
+  minute, and re-probing it on every search would pay its timeout every single time.
+
+`env` and `headers` are passed *in* so a server can start, and never come back out — not returned,
+not cached, and not part of the cache key. `test_mcp_tools.py` plants a fake credential and
+asserts it appears nowhere in the output.
+
 ## More than one Claude home
 
 Some machines run more than one Claude Code install — the one this was written on has two, a PRoot

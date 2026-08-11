@@ -22,6 +22,9 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
 - `scripts/triage_rank.py` — declares the catalog as a searchable corpus and ranks it against a
   task with the vendored engine (BM25 + a usage prior), then groups hits by the
   plugin you would switch on.
+- `scripts/mcp_tools.py` — OPTIONAL probe that asks each MCP server for its tool list over
+  the MCP protocol, because nothing on disk has it. Off unless `MCP_TRIAGE_PROBE_TOOLS` is set.
+  This is the ONE module that starts a process; it is timeout-bounded and cached.
 - `scripts/dense.py` — OPTIONAL semantic booster. Embeds the catalog once via a local
   `/v1/embeddings` server, caches the vectors, and hands `hybrid_query` a dense index.
   Off unless `MCP_TRIAGE_EMBED_URL` is set; returns `None` on every failure path.
@@ -62,7 +65,13 @@ The name is now narrower than the tool. Renaming is a breaking change for anyone
    Termux and a PRoot distro), each with its own config, plugins, and on/off state. Records are
    stamped with their `root` and never merged: an extension enabled in the *other* install is
    not reachable from this session, so it must never be offered as available or enable-able.
-8. **The plugin groups results; it never ranks them.** Grouping by plugin is a display concern
+8. **Probing MCP servers stays opt-in and bounded.** `mcp_tools.py` is the only code here that
+   starts a process. It must stay off unless `MCP_TRIAGE_PROBE_TOOLS` is set, keep a hard
+   per-server timeout, cache its results (including failures, as empty — a server broken now is
+   very likely broken in a minute, and re-probing every search would pay its timeout every time),
+   and never return or cache `env`/`headers`. Those go IN so a server can start; nothing about
+   them comes back out. `test_mcp_tools.py` locks all of it.
+9. **The plugin groups results; it never ranks them.** Grouping by plugin is a display concern
    (`group_hits`). Do NOT declare `group_key` as a `cluster_column`: feeding that relationship
    into the ranking makes rank fusion count a plugin's size as if it were relevance, and a large
    plugin's loosely-related siblings then bury a lean plugin's exact match. This was measured, not

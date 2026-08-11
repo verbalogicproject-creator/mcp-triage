@@ -73,6 +73,30 @@ If the server isn't running, nothing breaks. You get keyword matching and a line
 Matching: lexical only
 ```
 
+## Optional: make MCP servers findable
+
+An MCP server is the one thing whose config says almost nothing about it — just a command and
+some args, about 28 characters. So searching couldn't match one unless your query happened to
+echo its name.
+
+What it can actually *do* lives inside the running server. Ask for it once:
+
+```bash
+export MCP_TRIAGE_PROBE_TOOLS=1
+```
+
+Each server is started briefly, asked for its tool list, and the answer is cached. On this
+machine that took 8 servers to 125 tools — average searchable text per server went from 44
+characters to about 2,000 — and "generate UI screens from a design" started returning the
+`stitch` server, which previously never appeared at all.
+
+It's off by default because it starts processes, which no other part of this tool does. Each
+server gets a hard timeout, one that fails is remembered as empty rather than retried on every
+search, and your `env`/`headers` are passed in so the server can start but never stored.
+
+Re-run with `MCP_TRIAGE_PROBE_TOOLS=1` after adding or changing a server; the cache keys on
+what each server runs.
+
 ## Seeing everything, without a task
 
 ```bash

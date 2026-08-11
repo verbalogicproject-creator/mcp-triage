@@ -20,16 +20,18 @@ Real output:
 
 ```
 ............................................                             [100%]
-44 passed in 1.04s
+75 passed in 2.09s
 ```
 
-Three files, split by what they protect:
+Five files, split by what they protect:
 
 | File | Tests | Protects |
 |---|---|---|
 | `tests/test_inventory.py` | 4 | The restore reconstruction (chapter 01) |
 | `tests/test_catalog.py` | 19 | Honest probing and state resolution (chapter 02) |
 | `tests/test_rank.py` | 21 | Honest ranking (chapter 03) |
+| `tests/test_dense.py` | 14 | The semantic booster stays optional (chapter 03) |
+| `tests/test_mcp_tools.py` | 17 | The MCP probe stays opt-in and bounded (chapter 02) |
 
 Every test runs against hand-built fixtures or `tmp_path` — **none reads your real config**. That's
 both a correctness property (the suite can't pass or fail because of what you happen to have
@@ -37,7 +39,7 @@ installed) and the reason the whole thing runs in well under a second.
 
 ### The load-bearing tests
 
-Most of the 44 are ordinary coverage. These few are the ones worth knowing by name, because each
+Most of the 75 are ordinary coverage. These few are the ones worth knowing by name, because each
 locks a claim the tool makes in prose:
 
 | Test | Locks the claim |
@@ -52,6 +54,9 @@ locks a claim the tool makes in prose:
 | `test_other_install_never_appears_as_actionable` | An extension in the *other* Claude home is never offered as available or enable-able |
 | `test_multi_root_keeps_same_named_extensions_distinct` | Two installs stay two installs; one root's state never stands in for the other's |
 | `test_group_order_follows_best_member_not_member_count` | A lean plugin's exact match outranks a large plugin's siblings — plugin size is not relevance |
+| `test_no_dense_index_is_byte_identical_to_lexical_only` | The optional booster cannot change the default path at all |
+| `test_probing_is_off_unless_explicitly_enabled` | Nothing starts a process unless you asked for it |
+| `test_secrets_are_never_returned_from_a_probe` | `env` goes in so a server starts; nothing about it comes back out |
 
 **Three of those exist because the behaviour was wrong first**, which is the most useful thing this
 suite can tell you about itself:
@@ -116,7 +121,7 @@ Reproduce CI's own assertions locally, in order.
 python3 -m pytest tests/ -q
 ```
 
-Expected: `44 passed`.
+Expected: `75 passed`.
 
 ```bash
 printf '{"mcpServers":{"a":{"type":"stdio","command":"python3","args":["s.py"]}}}' > /tmp/cfg.json

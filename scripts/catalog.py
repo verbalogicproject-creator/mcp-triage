@@ -351,11 +351,18 @@ def collect_loose(dirs: list[tuple[Path, str]], skill_usage: dict,
     return out
 
 
-def collect_mcp(claude_json: dict, project_dir: Path, project_mcp: dict) -> list[dict]:
+def collect_mcp(claude_json: dict, project_dir: Path, project_mcp: dict,
+                tools: dict[str, str] | None = None) -> list[dict]:
     """MCP servers from user scope, project-entry scope, and `.mcp.json`.
 
     Never reads `env` or `headers` — see the module docstring.
+
+    `tools` maps a server name to searchable text describing what it offers (see
+    mcp_tools.py). Without it a server's only text is its transport and command,
+    which is far too thin to match a task description against — an MCP server
+    would be findable only when a query happened to echo its name.
     """
+    tools = tools or {}
     out: list[dict] = []
     proj = (claude_json.get("projects") or {}).get(str(project_dir)) or {}
     disabled = set(proj.get("disabledMcpServers") or [])
@@ -368,12 +375,15 @@ def collect_mcp(claude_json: dict, project_dir: Path, project_mcp: dict) -> list
         transport = cfg.get("type") or ("http" if cfg.get("url") else "stdio")
         # `where` is a command name or URL — never credentials.
         where = cfg.get("command", "") if transport == "stdio" else cfg.get("url", "")
+        tool_text = tools.get(name, "")
         out.append(_record(
             id=f"mcp:{scope}:{name}", name=name, kind="mcp", scope=scope,
             enabled=int(not off),
             state_reason="disabled for this project" if off else "connected",
             description=f"MCP server ({transport}) — {where}",
-            body="", path=str(where), enable_cmd=enable_cmd, disable_cmd=disable_cmd,
+            # The tools ARE the server's description as far as matching goes.
+            body=_clip(tool_text), path=str(where),
+            enable_cmd=enable_cmd, disable_cmd=disable_cmd,
         ))
 
     for name, cfg in (claude_json.get("mcpServers") or {}).items():
@@ -391,7 +401,8 @@ def collect_mcp(claude_json: dict, project_dir: Path, project_mcp: dict) -> list
 
 def build_catalog(project_dir: Path | None = None,
                   claude_json_path: Path | None = None,
-                  home: Path | None = None) -> list[dict]:
+                  home: Path | None = None,
+                  mcp_tools: dict[str, str] | None = None) -> list[dict]:
     """Every extension ONE Claude home can offer, with live on/off state.
 
     Scans exactly one root. Multi-root devices call this once per home and
@@ -436,8 +447,16 @@ def build_catalog(project_dir: Path | None = None,
         [(home / ".claude", "user"), (project_dir / ".claude", "project")],
         skill_usage, overrides,
     ))
+    if mcp_tools is None:
+        try:
+            import mcp_tools as _mt
+            proj_entry = (claude_json.get("projects") or {}).get(str(project_dir)) or {}
+            mcp_tools = _mt.tool_map({**(claude_json.get("mcpServers") or {}),
+                                      **(proj_entry.get("mcpServers") or {})})
+        except Exception:
+            mcp_tools = {}
     records.extend(collect_mcp(claude_json, project_dir,
-                               load_json(project_dir / ".mcp.json")))
+                               load_json(project_dir / ".mcp.json"), mcp_tools))
 
     # Stable order, and de-duplicate ids (a plugin reachable by two roots).
     seen: set[str] = set()
